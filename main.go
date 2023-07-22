@@ -86,9 +86,7 @@ func processFile(input io.Reader) ([]byte, error) {
 							if lit, ok := args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
 								oldName := lit.Value
 								newName := strings.ReplaceAll(oldName, " ", "_")
-								if newName != oldName {
-									lit.Value = newName
-								}
+								lit.Value = newName
 							}
 						}
 					}
