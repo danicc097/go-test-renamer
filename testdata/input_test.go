@@ -1,4 +1,4 @@
-package testpkg
+package testdata
 
 import "testing"
 
@@ -20,4 +20,21 @@ func TestSomething(t *testing.T) {
 	t.Run(someOtherConstant, func(t *testing.T) {
 		t.Parallel()
 	})
+
+	type testCase struct {
+		name string
+	}
+
+	tests := []testCase{
+		{
+			name: "a b c",
+		},
+		{
+			name: "1 2 3",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+		})
+	}
 }

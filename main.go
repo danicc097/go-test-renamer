@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"go/ast"
 	"go/format"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"io"
 	"log"
 	"os"
@@ -76,17 +78,58 @@ func processFile(input io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("error parsing input: %s", err)
 	}
 
+	conf := types.Config{Importer: importer.Default()}
+	info := &types.Info{
+		Defs:  make(map[*ast.Ident]types.Object),
+		Uses:  make(map[*ast.Ident]types.Object),
+		Types: make(map[ast.Expr]types.TypeAndValue),
+	}
+
+	_, err = conf.Check("", fset, []*ast.File{node}, info)
+	if err != nil {
+		return nil, fmt.Errorf("type checking error: %s", err)
+	}
+
 	ast.Inspect(node, func(n ast.Node) bool {
 		if callExpr, ok := n.(*ast.CallExpr); ok {
 			if selExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 				if xIdent, ok := selExpr.X.(*ast.Ident); ok {
 					if xIdent.Name == "t" && selExpr.Sel.Name == "Run" {
-						args := callExpr.Args
-						if len(args) > 0 {
-							if lit, ok := args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-								oldName := lit.Value
-								newName := strings.ReplaceAll(oldName, " ", "_")
-								lit.Value = newName
+						tRunArgs := callExpr.Args
+						if len(tRunArgs) > 0 {
+							testNameArg := tRunArgs[0]
+
+							// update directly
+							if lit, ok := testNameArg.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+								lit.Value = strings.ReplaceAll(lit.Value, " ", "_")
+							}
+
+							// handle test case name via table driven test
+							if sel, ok := testNameArg.(*ast.SelectorExpr); ok {
+								if sel.Sel.Name == "name" || sel.Sel.Name == "Name" {
+									if obj := info.ObjectOf(sel.Sel); obj != nil {
+										fmt.Printf("obj: %v\n", obj)
+										fmt.Printf("sel.Sel: %+v\n", info.ObjectOf(sel.Sel))
+
+										if tv, ok := obj.(*types.Var); ok && tv.IsField() {
+											fmt.Printf("sel.X: %T\n", sel.X)
+
+											// TODO: update referenced
+
+											// ast.Inspect(node, func(n ast.Node) bool {
+											// 	if ident, ok := n.(*ast.Ident); ok {
+											// 		if ident.Name == obj.Name() {
+											// 			if ident.Obj != nil {
+											// 				fmt.Printf("ident.Decl: %+v\n", ident.Obj.Decl)
+											// 			}
+											// 			// ...
+											// 		}
+											// 	}
+											// 	return true
+											// })
+										}
+									}
+								}
 							}
 						}
 					}
