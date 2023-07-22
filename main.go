@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,12 +18,19 @@ import (
 )
 
 func main() {
+	var verbose bool
 	excludedDirs := []string{"vendor"}
+
 	ed := flag.String("exclude", "", "Comma-separated directories to exclude")
+	v := flag.Bool("v", false, "Verbose output")
 	flag.Parse()
 
 	if ed != nil {
 		excludedDirs = append(excludedDirs, strings.Split(*ed, ",")...)
+	}
+
+	if v != nil {
+		verbose = *v
 	}
 
 	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
@@ -37,28 +45,27 @@ func main() {
 		if strings.HasSuffix(path, "_test.go") && !info.IsDir() {
 			input, err := os.ReadFile(path)
 			if err != nil {
-				fmt.Printf("Error reading file %s: %s\n", path, err)
-				return nil
+				log.Fatalf("Error reading file %s: %s\n", path, err)
 			}
 
 			output, err := processFile(bytes.NewReader(input))
 			if err != nil {
-				fmt.Printf("Error processing file %s: %s\n", path, err)
-				return nil
+				log.Fatalf("Error processing file %s: %s\n", path, err)
 			}
 
 			err = os.WriteFile(path, output, info.Mode())
 			if err != nil {
-				fmt.Printf("Error writing processed contents to file %s: %s\n", path, err)
-				return nil
+				log.Fatalf("Error writing processed contents to file %s: %s\n", path, err)
 			}
 
-			fmt.Printf("Processed file %s\n", path)
+			if verbose {
+				fmt.Printf("Processed file %s\n", path)
+			}
 		}
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("Error during file processing: %s\n", err)
+		log.Fatalf("Error during file processing: %s\n", err)
 	}
 }
 
