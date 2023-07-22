@@ -1,52 +1,41 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: go-test-renamer <directory>")
-		os.Exit(1)
-	}
-
-	directory := os.Args[1]
-
-	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() || !strings.HasSuffix(info.Name(), "_test.go") {
-			return nil
-		}
-
-		if err := processFile(path); err != nil {
-			fmt.Printf("Error processing file %s: %s\n", path, err)
-		}
-
-		return nil
-	})
+	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		fmt.Printf("Error processing files: %s\n", err)
-		os.Exit(1)
+		fmt.Printf("Error reading input: %s\n", err)
+		return
 	}
 
-	fmt.Println("All files processed successfully.")
+	output, err := processFile(bytes.NewReader(input))
+	if err != nil {
+		fmt.Printf("Error processing file: %s\n", err)
+		return
+	}
+
+	_, err = os.Stdout.Write(output)
+	if err != nil {
+		fmt.Printf("Error writing output: %s\n", err)
+	}
 }
 
-func processFile(filename string) error {
+func processFile(input io.Reader) ([]byte, error) {
 	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
+	node, err := parser.ParseFile(fset, "", input, parser.ParseComments)
 	if err != nil {
-		return fmt.Errorf("error parsing file: %s", err)
+		return nil, fmt.Errorf("error parsing input: %s", err)
 	}
 
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -71,17 +60,11 @@ func processFile(filename string) error {
 		return true
 	})
 
-	out, err := os.Create(filename)
+	var output bytes.Buffer
+	err = format.Node(&output, fset, node)
 	if err != nil {
-		return fmt.Errorf("error creating output file: %s", err)
-	}
-	defer out.Close()
-
-	if err := format.Node(out, fset, node); err != nil {
-		return fmt.Errorf("error writing to output file: %s", err)
+		return nil, fmt.Errorf("error formatting output: %s", err)
 	}
 
-	fmt.Printf("File processed: %s\n", filename)
-
-	return nil
+	return output.Bytes(), nil
 }

@@ -11,7 +11,7 @@ func TestSomething(t *testing.T) {
 		})
 	})
 
-	t.Run("another t.Run()", func(t *testing.T) {
+	t.Run("another  t.Run()", func(t *testing.T) {
 		t.Parallel()
 	})
 }
