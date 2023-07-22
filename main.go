@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -9,25 +10,55 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
 func main() {
-	input, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		fmt.Printf("Error reading input: %s\n", err)
-		return
+	var excludedDirs []string
+	ed := flag.String("exclude", "", "Comma-separated directories to exclude")
+	flag.Parse()
+
+	if ed != nil {
+		excludedDirs = strings.Split(*ed, ",")
 	}
 
-	output, err := processFile(bytes.NewReader(input))
-	if err != nil {
-		fmt.Printf("Error processing file: %s\n", err)
-		return
-	}
+	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 
-	_, err = os.Stdout.Write(output)
+		if info.IsDir() && slices.Contains(excludedDirs, info.Name()) {
+			return filepath.SkipDir
+		}
+
+		if strings.HasSuffix(path, "_test.go") && !info.IsDir() {
+			input, err := os.ReadFile(path)
+			if err != nil {
+				fmt.Printf("Error reading file %s: %s\n", path, err)
+				return nil
+			}
+
+			output, err := processFile(bytes.NewReader(input))
+			if err != nil {
+				fmt.Printf("Error processing file %s: %s\n", path, err)
+				return nil
+			}
+
+			err = os.WriteFile(path, output, info.Mode())
+			if err != nil {
+				fmt.Printf("Error writing processed contents to file %s: %s\n", path, err)
+				return nil
+			}
+
+			fmt.Printf("Processed file %s\n", path)
+		}
+		return nil
+	})
 	if err != nil {
-		fmt.Printf("Error writing output: %s\n", err)
+		fmt.Printf("Error during file processing: %s\n", err)
 	}
 }
 
