@@ -17,12 +17,12 @@ import (
 )
 
 func main() {
-	var excludedDirs []string
+	excludedDirs := []string{"vendor"}
 	ed := flag.String("exclude", "", "Comma-separated directories to exclude")
 	flag.Parse()
 
 	if ed != nil {
-		excludedDirs = strings.Split(*ed, ",")
+		excludedDirs = append(excludedDirs, strings.Split(*ed, ",")...)
 	}
 
 	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
